@@ -73,6 +73,13 @@ Puis dans Odoo : *Apps* → *Mettre à jour la liste* → chercher "SOPROMER Ass
 
 ## TODO / v1.1
 
+### Priorité haute (demande utilisateur)
+
+- [ ] **Verrouillage type d'opération BL** : n'autoriser que `Bon de livraison` sur les BL de vente. Si l'user choisit un autre type (transfert interne, réception, etc.) → **avertissement bloquant** avec message clair. Éviter les erreurs d'affectation en cascade.
+- [ ] **Colonne "Avertissement disponibilité stock"** à côté du bouton Assistant lots dans l'onglet Opérations : afficher en temps réel (badge coloré 🟢/🟠/🔴) la dispo réelle une fois le type d'opération + l'emplacement source choisis. Rouge si stock < demande, orange si proche, vert si OK.
+
+### Priorité moyenne
+
 - [ ] Tests unitaires (`tests/test_lot_wizard.py`)
 - [ ] Support multi-emplacements source (locations enfants du warehouse)
 - [ ] Indicateur stock négatif (interaction avec `stock_no_negative` tiers)
