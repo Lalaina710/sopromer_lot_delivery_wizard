@@ -308,3 +308,55 @@ class SopromerLotDeliveryWizardAvailable(models.TransientModel):
     def _compute_expiration_date(self):
         for line in self:
             line.expiration_date = getattr(line.lot_id, 'expiration_date', False) or False
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Re-populate stock-derived fields server-side.
+
+        The Odoo web client strips readonly fields from the payload it
+        sends at TransientModel auto-save, even when values were provided
+        by default_get via (0, 0, {}) commands. So qty_available,
+        qty_reserved, reserved_on arrive here as None/empty. We recompute
+        them from quants/move.lines before super().create().
+        """
+        Quant = self.env['stock.quant']
+        MoveLine = self.env['stock.move.line']
+        Wizard = self.env['sopromer.lot.delivery.wizard']
+        for vals in vals_list:
+            lot_id = vals.get('lot_id')
+            wizard_id = vals.get('wizard_id')
+            if not lot_id or not wizard_id:
+                continue
+            wiz = Wizard.browse(wizard_id)
+            if not wiz.product_id or not wiz.location_id:
+                continue
+            # qty_available: raw stock in location (sum across sub-locations)
+            quants = Quant.search([
+                ('product_id', '=', wiz.product_id.id),
+                ('location_id', '=', wiz.location_id.id),
+                ('lot_id', '=', lot_id),
+                ('quantity', '>', 0),
+            ])
+            vals['qty_available'] = sum(quants.mapped('quantity'))
+            # qty_reserved: from OTHER moves (excluding current move)
+            other_lines = MoveLine.search([
+                ('product_id', '=', wiz.product_id.id),
+                ('location_id', '=', wiz.location_id.id),
+                ('lot_id', '=', lot_id),
+                ('state', 'not in', ('done', 'cancel')),
+                ('move_id', '!=', wiz.move_id.id),
+            ])
+            reserved = 0.0
+            docs = set()
+            for ml in other_lines:
+                q = getattr(ml, 'reserved_uom_qty', False)
+                if not q:
+                    q = getattr(ml, 'quantity_product_uom', 0.0) or 0.0
+                if q <= 0:
+                    continue
+                reserved += q
+                name = ml.picking_id.name or ml.move_id.reference or _('Autre')
+                docs.add(name)
+            vals['qty_reserved'] = reserved
+            vals['reserved_on'] = ', '.join(sorted(docs))
+        return super().create(vals_list)
