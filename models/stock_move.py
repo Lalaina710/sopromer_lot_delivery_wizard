@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from odoo.tools import float_compare
 
 
@@ -89,52 +89,6 @@ class StockMove(models.Model):
             }
         }
 
-    def _sopromer_is_in_scope_for_check(self):
-        """Return True if this move must be validated by the overflow
-        check (outgoing + tracked + active state + has lines)."""
-        self.ensure_one()
-        if self.state in ('done', 'cancel', 'draft'):
-            return False
-        if self.picking_type_id.code != 'outgoing':
-            return False
-        if self.product_id.tracking not in ('lot', 'serial'):
-            return False
-        if not self.move_line_ids:
-            return False
-        return True
-
-    def _sopromer_raise_exceeds_demand(self, total):
-        """Raise a ValidationError explaining the overflow."""
-        self.ensure_one()
-        raise ValidationError(_(
-            "Produit '%(prod)s' : la somme des quantites des "
-            "lots selectionnes (%(sel)s %(uom)s) depasse la "
-            "quantite demandee (%(dem)s %(uom)s).\n\n"
-            "Ajustez les quantites ou supprimez des lots via le "
-            "popup 'Detail des operations' (menu ≡)."
-        ) % {
-            'prod': self.product_id.display_name,
-            'sel': total,
-            'dem': self.product_uom_qty,
-            'uom': self.product_uom.name,
-        })
-
-    def _sopromer_check_exceeds_demand(self):
-        """Raise if sum(move_line.quantity) > product_uom_qty on an
-        outgoing tracked move. Strict check used from create() only:
-        transient mid-edit states (sync BC<->BL, Odoo rebalancing
-        reservations) must not block. Final coherence is enforced at
-        button_validate (see stock_picking.py).
-        """
-        for move in self:
-            if not move._sopromer_is_in_scope_for_check():
-                continue
-            total = sum(move.move_line_ids.mapped('quantity'))
-            rounding = move.product_uom.rounding
-            if float_compare(total, move.product_uom_qty,
-                             precision_rounding=rounding) > 0:
-                move._sopromer_raise_exceeds_demand(total)
-
     def action_open_lot_wizard(self):
         """Open the SOPROMER lot delivery wizard for the current move."""
         self.ensure_one()
@@ -163,14 +117,3 @@ class StockMove(models.Model):
                 'default_picking_id': self.picking_id.id,
             },
         }
-
-
-class StockMoveLine(models.Model):
-    _inherit = 'stock.move.line'
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        lines = super().create(vals_list)
-        # Strict check: a new line can only increase the total.
-        lines.mapped('move_id')._sopromer_check_exceeds_demand()
-        return lines
