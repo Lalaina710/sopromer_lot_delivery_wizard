@@ -3,10 +3,10 @@
 <odoo>
 
     <!--
-        Ajoute un bouton "Assistant lots" sur chaque ligne du tableau
-        des mouvements (onglet "Operations") du BL. Visible uniquement :
+        Ajoute un bouton "Assistant lots" + une colonne badge de dispo
+        stock sur chaque ligne du tableau des mouvements (onglet Operations)
+        du BL. Visible uniquement :
           - picking sortant (outgoing)
-          - produit suivi par lot/serial
           - mouvement non done / non cancel
     -->
     <record id="sopromer_stock_picking_form_lot_wizard" model="ir.ui.view">
@@ -14,12 +14,18 @@
         <field name="model">stock.picking</field>
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
-            <!--
-                Cible la liste des moves de l'onglet Operations. On insere
-                une colonne bouton en fin de ligne pour ouvrir le wizard.
-            -->
             <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_uom_qty']"
                    position="before">
+                <field name="stock_warning_label" column_invisible="1"/>
+                <field name="stock_warning_level"
+                       widget="badge"
+                       string="Dispo"
+                       decoration-success="stock_warning_level == 'ok'"
+                       decoration-warning="stock_warning_level == 'warning'"
+                       decoration-danger="stock_warning_level == 'danger'"
+                       decoration-muted="stock_warning_level == 'none'"
+                       invisible="parent.picking_type_code != 'outgoing' or state in ('done', 'cancel')"
+                       optional="show"/>
                 <button name="action_open_lot_wizard"
                         type="object"
                         string="Assistant lots"

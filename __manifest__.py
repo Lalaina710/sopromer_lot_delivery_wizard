@@ -2,7 +2,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
 {
     'name': 'SOPROMER - Assistant selection lots BL de vente',
-    'version': '18.0.1.0.4',
+    'version': '18.0.1.1.0',
     'category': 'Inventory/Inventory',
     'summary': 'Wizard intuitif multi-lots BL de vente (FIFO + checkbox + qty modifiable + 1-clic valider)',
     'description': """

@@ -1,11 +1,62 @@
 # -*- coding: utf-8 -*-
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
-from odoo import _, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class StockMove(models.Model):
     _inherit = 'stock.move'
+
+    stock_warning_level = fields.Selection(
+        [
+            ('none', 'N/A'),
+            ('ok', 'OK'),
+            ('warning', 'Limite'),
+            ('danger', 'Insuffisant'),
+        ],
+        compute='_compute_stock_warning_level',
+        string='Dispo',
+        store=False,
+        help="Indicateur visuel de la disponibilite reelle du produit "
+             "a l'emplacement source du mouvement.",
+    )
+    stock_warning_label = fields.Char(
+        compute='_compute_stock_warning_level',
+        string='Dispo libre',
+        store=False,
+    )
+
+    @api.depends('product_id', 'location_id', 'product_uom_qty', 'state',
+                 'picking_type_id.code')
+    def _compute_stock_warning_level(self):
+        Quant = self.env['stock.quant']
+        for move in self:
+            move.stock_warning_level = 'none'
+            move.stock_warning_label = ''
+            # Only meaningful for outgoing moves not yet done
+            if (not move.product_id or not move.location_id
+                    or move.state in ('done', 'cancel')
+                    or move.picking_type_id.code != 'outgoing'):
+                continue
+            quants = Quant.search([
+                ('product_id', '=', move.product_id.id),
+                ('location_id', 'child_of', move.location_id.id),
+            ])
+            total_qty = sum(quants.mapped('quantity'))
+            total_reserved = sum(quants.mapped('reserved_quantity'))
+            free = total_qty - total_reserved
+            demand = move.product_uom_qty or 0.0
+            move.stock_warning_label = (
+                "%.3f / %.3f" % (free, demand) if demand else "%.3f" % free
+            )
+            if demand <= 0:
+                move.stock_warning_level = 'none'
+            elif free < demand:
+                move.stock_warning_level = 'danger'
+            elif free < demand * 1.2:
+                move.stock_warning_level = 'warning'
+            else:
+                move.stock_warning_level = 'ok'
 
     def action_open_lot_wizard(self):
         """Open the SOPROMER lot delivery wizard for the current move.

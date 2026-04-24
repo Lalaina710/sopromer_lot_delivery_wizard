@@ -1,6 +1,6 @@
 # SOPROMER — Assistant sélection lots BL de vente
 
-Module Odoo 18 — **v18.0.1.0.0**
+Module Odoo 18 — **v18.0.1.1.0**
 
 ## Contexte
 
@@ -70,13 +70,14 @@ Puis dans Odoo : *Apps* → *Mettre à jour la liste* → chercher "SOPROMER Ass
 | 18.0.1.0.2 | 2026-04-24 | Fix header "Demand 0,000" : passage des champs related en stored set dans `default_get` | Claude (opus-4.7) |
 | 18.0.1.0.3 | 2026-04-24 | Ajout `lot_id column_invisible` dans trees pour éviter erreur "champ obligatoire" à la sauvegarde | Claude (opus-4.7) |
 | 18.0.1.0.4 | 2026-04-24 | Simplification design : suppression tab "Lots sélectionnés" + bouton "Livrer". Une seule table + 1 bouton "Valider". Suppression `_onchange_to_select` (fuseillait qty_to_take au render) | Claude (opus-4.7) |
+| 18.0.1.1.0 | 2026-04-24 | **Feature** : verrouillage type opération BL (onchange + constrains si sale-linked) + badge dispo stock sur move (🟢 OK / 🟠 Limite / 🔴 Insuffisant) | Claude (opus-4.7) |
 
 ## TODO / v1.1
 
 ### Priorité haute (demande utilisateur)
 
-- [ ] **Verrouillage type d'opération BL** : n'autoriser que `Bon de livraison` sur les BL de vente. Si l'user choisit un autre type (transfert interne, réception, etc.) → **avertissement bloquant** avec message clair. Éviter les erreurs d'affectation en cascade.
-- [ ] **Colonne "Avertissement disponibilité stock"** à côté du bouton Assistant lots dans l'onglet Opérations : afficher en temps réel (badge coloré 🟢/🟠/🔴) la dispo réelle une fois le type d'opération + l'emplacement source choisis. Rouge si stock < demande, orange si proche, vert si OK.
+- [x] ~~**Verrouillage type d'opération BL**~~ → livré en v1.1.0. Onchange warning + constrains ValidationError au save si un picking lié à une vente a un type non-outgoing.
+- [x] ~~**Colonne badge disponibilité stock**~~ → livré en v1.1.0. `stock_warning_level` computed sur `stock.move` (none/ok/warning/danger), affiché en widget `badge` dans l'onglet Opérations du BL avec decorations success/warning/danger. Seuils : 🔴 `free < demand`, 🟠 `free < demand * 1.2`, 🟢 `free >= demand * 1.2`.
 
 ### Priorité moyenne
 
