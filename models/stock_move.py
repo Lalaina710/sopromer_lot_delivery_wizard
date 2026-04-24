@@ -2,10 +2,46 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import float_compare
 
 
 class StockMove(models.Model):
     _inherit = 'stock.move'
+
+    @api.onchange('product_uom_qty')
+    def _onchange_product_uom_qty_warn_lots(self):
+        """Warn when user edits demand on a move with existing lot lines.
+
+        The previously-picked lots won't match the new demand -> BL
+        validation will fail. Heads-up so user knows to reselect.
+        """
+        if not self.move_line_ids or not self.product_uom:
+            return
+        if self.product_id.tracking not in ('lot', 'serial'):
+            return
+        lines_with_lot = self.move_line_ids.filtered('lot_id')
+        if not lines_with_lot:
+            return
+        total_lines = sum(lines_with_lot.mapped('quantity'))
+        rounding = self.product_uom.rounding
+        if float_compare(total_lines, self.product_uom_qty,
+                         precision_rounding=rounding) == 0:
+            return
+        return {
+            'warning': {
+                'title': _("Lots a reselectionner"),
+                'message': _(
+                    "Vous avez modifie la quantite demandee mais des lots "
+                    "sont deja selectionnes (total actuel : %(sel)s).\n\n"
+                    "La validation du BL sera bloquee tant que ces lots "
+                    "ne sont pas resaisies.\n\n"
+                    "Action requise :\n"
+                    "1. Menu sandwich ≡ sur la ligne -> Detail des operations\n"
+                    "2. Supprimez toutes les lignes de lots\n"
+                    "3. Relancez l'Assistant lots (baguette magique)"
+                ) % {'sel': total_lines},
+            }
+        }
 
     stock_warning_level = fields.Selection(
         [
