@@ -121,13 +121,10 @@ class StockMove(models.Model):
 
     def _sopromer_check_exceeds_demand(self):
         """Raise if sum(move_line.quantity) > product_uom_qty on an
-        outgoing tracked move (in assigned/partially_available state).
-
-        Strict check used from the create() hook: any new line can only
-        increase the total, so the overflow is always a real violation.
-
-        NOT on unlink so the user can delete lines freely to restore
-        coherence.
+        outgoing tracked move. Strict check used from create() only:
+        transient mid-edit states (sync BC<->BL, Odoo rebalancing
+        reservations) must not block. Final coherence is enforced at
+        button_validate (see stock_picking.py).
         """
         for move in self:
             if not move._sopromer_is_in_scope_for_check():
@@ -137,37 +134,6 @@ class StockMove(models.Model):
             if float_compare(total, move.product_uom_qty,
                              precision_rounding=rounding) > 0:
                 move._sopromer_raise_exceeds_demand(total)
-
-    def _sopromer_check_exceeds_demand_on_write(self, old_totals):
-        """Raise only when a write() introduces a NEW overflow.
-
-        Rules (agent: odoo-backend, fix v18.0.1.6.2):
-        - Allow if new_total <= demand (coherent state).
-        - Allow if new_total > demand but new_total <= old_total
-          (same or reduced overflow — covers Odoo adjusting lines when
-          the demand is lowered, lets the user fix the state).
-        - Block only if new_total > demand AND new_total > old_total
-          (caller actively worsens an already-incoherent state).
-
-        :param old_totals: dict {move_id: old_total_qty} captured BEFORE
-            super().write() was called.
-        """
-        for move in self:
-            if not move._sopromer_is_in_scope_for_check():
-                continue
-            new_total = sum(move.move_line_ids.mapped('quantity'))
-            rounding = move.product_uom.rounding
-            if float_compare(new_total, move.product_uom_qty,
-                             precision_rounding=rounding) <= 0:
-                # new state is coherent, nothing to do
-                continue
-            old_total = old_totals.get(move.id, 0.0)
-            if float_compare(new_total, old_total,
-                             precision_rounding=rounding) <= 0:
-                # total did not grow: same overflow or reduction, allow
-                # the user (or Odoo internals) to keep restoring state
-                continue
-            move._sopromer_raise_exceeds_demand(new_total)
 
     def action_open_lot_wizard(self):
         """Open the SOPROMER lot delivery wizard for the current move."""
@@ -208,34 +174,3 @@ class StockMoveLine(models.Model):
         # Strict check: a new line can only increase the total.
         lines.mapped('move_id')._sopromer_check_exceeds_demand()
         return lines
-
-    def write(self, vals):
-        # agent: odoo-backend - fix v18.0.1.6.2
-        # Only relevant field changes may alter the line total or move
-        # membership. For anything else, skip the capture/check entirely
-        # to keep writes cheap.
-        relevant = 'quantity' in vals or 'lot_id' in vals or 'move_id' in vals
-        if not relevant:
-            return super().write(vals)
-
-        # Capture the "before" total per move BEFORE super().write() so
-        # we can distinguish a user/Odoo reducing an existing overflow
-        # (allowed) from a write that actively worsens it (blocked).
-        # Include both the current moves of self and any move the lines
-        # may be moved away from (if move_id changes in vals).
-        moves_before = self.mapped('move_id')
-        old_totals = {
-            move.id: sum(move.move_line_ids.mapped('quantity'))
-            for move in moves_before
-        }
-
-        result = super().write(vals)
-
-        # After write, check the union of old and new moves: a line may
-        # have been reassigned (move_id in vals), shifting qty between
-        # two moves. Missing moves default to old_total=0.0 inside the
-        # helper, i.e. strict check - correct for a freshly-impacted
-        # move that had no lines (or no captured value) before.
-        moves_to_check = moves_before | self.mapped('move_id')
-        moves_to_check._sopromer_check_exceeds_demand_on_write(old_totals)
-        return result
