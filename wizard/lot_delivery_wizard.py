@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import float_compare, float_is_zero
+from odoo.tools import float_compare
 
 
 class SopromerLotDeliveryWizard(models.TransientModel):
@@ -185,14 +185,15 @@ class SopromerLotDeliveryWizard(models.TransientModel):
     # Actions
     # -----------------------------------------------------------------
     def action_validate(self):
-        """Create stock.move.line for each ticked lot with qty_to_take > 0.
+        """Replace the move's move_lines with the wizard selection.
 
-        Hard caps:
-        - Individual qty_to_take cannot exceed qty_free (per-lot check)
-        - Sum of qty_to_take cannot exceed demand (per-move check)
+        We DELETE all existing move.lines (including Odoo's auto-reserved
+        ones and any placeholders) before CREATE-ing the user's picks.
+        This makes the wizard the source of truth each time.
 
-        Move is guaranteed to be clean-slate (no pre-existing move.lines)
-        because action_open_lot_wizard blocks otherwise.
+        Hard caps applied before any write:
+        - Per-lot : qty_to_take <= qty_free
+        - Per-move : sum(qty_to_take) <= demand_qty
         """
         self.ensure_one()
         rounding = self.product_id.uom_id.rounding
@@ -206,7 +207,6 @@ class SopromerLotDeliveryWizard(models.TransientModel):
         if not to_deliver:
             raise UserError(_("Aucun lot coche avec quantite > 0."))
 
-        # Per-lot cap: qty_to_take <= qty_free
         for av in to_deliver:
             if float_compare(av.qty_to_take, av.qty_free,
                              precision_rounding=rounding) > 0:
@@ -230,12 +230,9 @@ class SopromerLotDeliveryWizard(models.TransientModel):
         move = self.move_id
         MoveLine = self.env['stock.move.line']
 
-        # Cleanup empty placeholders (no lot, qty 0) before creating ours
-        move.move_line_ids.filtered(
-            lambda ml: not ml.lot_id and float_is_zero(
-                ml.quantity, precision_rounding=rounding
-            )
-        ).unlink()
+        # Wipe clean before re-creating: covers Odoo auto-reservation,
+        # previous wizard validations, empty placeholders, all at once.
+        move.move_line_ids.unlink()
 
         for av in to_deliver:
             MoveLine.create({

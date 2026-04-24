@@ -1,6 +1,6 @@
 # SOPROMER — Assistant sélection lots BL de vente
 
-Module Odoo 18 — **v18.0.1.4.0**
+Module Odoo 18 — **v18.0.1.5.0**
 
 ## Contexte
 
@@ -88,6 +88,7 @@ Cette règle évite les sur-allocations de stock quand la demande ou les lots ch
 | 18.0.1.2.0 | 2026-04-24 | **Feature (retirée en 1.3.0)** : édition post-validation via sync intelligent. Abandonnée après détection bug sur-allocation (demande 50 → done 150 sur BL CFMP2/OUT/00194 en scénario C). | Claude (opus-4.7) |
 | 18.0.1.3.0 | 2026-04-24 | **Sécurisation** : blocage de l'ouverture du wizard si le move a déjà des lots sélectionnés. Message avec instructions claires pour passer par le menu sandwich natif. Revert du sync intelligent → create-only simple. Ajout cap par-lot (`qty_to_take <= qty_free`) à la validation. | Claude (opus-4.7) |
 | 18.0.1.4.0 | 2026-04-24 | **Sécurisation** : blocage `button_validate` sur BL si incohérence demande ≠ somme(move_line.quantity) sur un move tracé (évite sur/sous-livraison silencieuse après modification de qty). Ajout warning onchange `product_uom_qty` avertissant l'user dès la modification de la demande si lots déjà sélectionnés. | Claude (opus-4.7) |
+| 18.0.1.5.0 | 2026-04-24 | **Fix faux positif** : suppression du block d'ouverture v1.3.0 qui déclenchait sur BL fraîche (Odoo auto-réserve lots à la réservation → move.line avec qty > 0 sans action user). Nouvelle stratégie : wizard **remplace** l'état existant au `action_validate` (unlink all + create fresh). Les défenses v1.4.0 (warning onchange + block `button_validate`) restent en place pour catch les incohérences. | Claude (opus-4.7) |
 
 ## TODO / v1.1
 
