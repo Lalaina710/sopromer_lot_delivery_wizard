@@ -1,6 +1,6 @@
 # SOPROMER — Assistant sélection lots BL de vente
 
-Module Odoo 18 — **v18.0.1.2.0**
+Module Odoo 18 — **v18.0.1.3.0**
 
 ## Contexte
 
@@ -45,6 +45,8 @@ Puis dans Odoo : *Apps* → *Mettre à jour la liste* → chercher "SOPROMER Ass
 
 ## Utilisation
 
+### Première sélection (move sans lots)
+
 1. Ouvrir un BL de vente (`WH/OUT/...`) en état *Prêt* ou *En cours*
 2. Onglet *Opérations* → sur la ligne du produit tracé par lot, cliquer **🪄 Assistant lots**
 3. Le wizard s'ouvre avec tous les lots dispos au lieu, triés FIFO :
@@ -54,6 +56,18 @@ Puis dans Odoo : *Apps* → *Mettre à jour la liste* → chercher "SOPROMER Ass
 5. Vérifier le header (Total = Demande, Restant = 0)
 6. Cliquer **"Valider la livraison"** → les `stock.move.line` sont créées sur le move et le wizard ferme
 7. Retour BL : les lignes apparaissent dans Opérations avec lots + qté
+
+### Modifier une sélection déjà validée
+
+Le wizard **BLOQUE** son ouverture si des lots existent déjà sur le move (v1.3.0). Pour modifier une sélection :
+
+1. Sur la ligne produit de l'onglet *Opérations* → cliquer **≡ menu sandwich** (ou double-clic)
+2. Le popup natif *"Détail des opérations"* s'ouvre
+3. **Supprimer** toutes les lignes de lots (icône corbeille)
+4. Fermer le popup
+5. Relancer **🪄 Assistant lots** → wizard repart avec état propre et FIFO recalculé
+
+Cette règle évite les sur-allocations de stock quand la demande ou les lots changent après une première validation.
 
 ## Sécurité
 
@@ -71,7 +85,8 @@ Puis dans Odoo : *Apps* → *Mettre à jour la liste* → chercher "SOPROMER Ass
 | 18.0.1.0.3 | 2026-04-24 | Ajout `lot_id column_invisible` dans trees pour éviter erreur "champ obligatoire" à la sauvegarde | Claude (opus-4.7) |
 | 18.0.1.0.4 | 2026-04-24 | Simplification design : suppression tab "Lots sélectionnés" + bouton "Livrer". Une seule table + 1 bouton "Valider". Suppression `_onchange_to_select` (fuseillait qty_to_take au render) | Claude (opus-4.7) |
 | 18.0.1.1.0 | 2026-04-24 | **Feature** : verrouillage type opération BL (onchange + constrains si sale-linked) + badge dispo stock sur move (🟢 OK / 🟠 Limite / 🔴 Insuffisant) | Claude (opus-4.7) |
-| 18.0.1.2.0 | 2026-04-24 | **Feature** : édition post-validation. Ré-ouverture du wizard pré-remplit les lots déjà sélectionnés avec leur qty. Sync intelligent au validate (UPDATE / DELETE / CREATE au lieu de CREATE-only → fix bug double allocation) | Claude (opus-4.7) |
+| 18.0.1.2.0 | 2026-04-24 | **Feature (retirée en 1.3.0)** : édition post-validation via sync intelligent. Abandonnée après détection bug sur-allocation (demande 50 → done 150 sur BL CFMP2/OUT/00194 en scénario C). | Claude (opus-4.7) |
+| 18.0.1.3.0 | 2026-04-24 | **Sécurisation** : blocage de l'ouverture du wizard si le move a déjà des lots sélectionnés. Message avec instructions claires pour passer par le menu sandwich natif. Revert du sync intelligent → create-only simple. Ajout cap par-lot (`qty_to_take <= qty_free`) à la validation. | Claude (opus-4.7) |
 
 ## TODO / v1.1
 

@@ -61,10 +61,12 @@ class StockMove(models.Model):
     def action_open_lot_wizard(self):
         """Open the SOPROMER lot delivery wizard for the current move.
 
-        Scope-gated here (not only in the view) because a savvy user could
-        still call the server action by ID; we fail loudly rather than
-        silently opening a broken wizard on transfers where lots are
-        irrelevant (incoming, internal, done moves, untracked products).
+        Guards:
+        - Scope: outgoing only, tracked product, not done/cancel
+        - Clean-slate: blocks if move already has lot-filled move_lines,
+          to force the user through a deliberate reset via the native
+          'Detail des operations' popup (avoids stock over-allocation
+          from multi-pass edits).
         """
         self.ensure_one()
         if self.picking_type_id.code != 'outgoing':
@@ -80,6 +82,26 @@ class StockMove(models.Model):
             raise UserError(_(
                 "Le mouvement est deja %s - selection figee."
             ) % self.state)
+
+        existing = self.move_line_ids.filtered(
+            lambda ml: ml.lot_id and ml.quantity > 0
+        )
+        if existing:
+            lot_names = ', '.join(existing.mapped('lot_id.name'))
+            raise UserError(_(
+                "Des lots sont deja selectionnes sur ce mouvement :\n\n"
+                "   %(lots)s\n\n"
+                "Pour modifier la selection, procedez ainsi :\n"
+                "  1. Cliquez sur l'icone ≡ (menu sandwich) a droite de "
+                "la ligne produit dans l'onglet Operations\n"
+                "     (ou double-cliquez sur la ligne pour ouvrir le popup "
+                "'Detail des operations')\n"
+                "  2. Supprimez toutes les lignes de lots (icone corbeille)\n"
+                "  3. Fermez le popup\n"
+                "  4. Relancez l'Assistant lots ici\n\n"
+                "Cette regle evite les sur-allocations de stock quand la "
+                "demande ou les lots changent apres une premiere validation."
+            ) % {'lots': lot_names})
 
         return {
             'name': _('Assistant selection lots - %s') % self.product_id.display_name,
