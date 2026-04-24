@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0). -->
+<odoo>
+
+    <!--
+        Ajoute un bouton "Assistant lots" sur chaque ligne du tableau
+        des mouvements (onglet "Operations") du BL. Visible uniquement :
+          - picking sortant (outgoing)
+          - produit suivi par lot/serial
+          - mouvement non done / non cancel
+    -->
+    <record id="sopromer_stock_picking_form_lot_wizard" model="ir.ui.view">
+        <field name="name">stock.picking.form.sopromer.lot.wizard</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <!--
+                Cible la liste des moves de l'onglet Operations. On insere
+                une colonne bouton en fin de ligne pour ouvrir le wizard.
+            -->
+            <xpath expr="//field[@name='move_ids_without_package']/list/field[@name='product_uom_qty']"
+                   position="before">
+                <button name="action_open_lot_wizard"
+                        type="object"
+                        string="Assistant lots"
+                        icon="fa-magic"
+                        invisible="parent.picking_type_code != 'outgoing' or product_id == False or state in ('done', 'cancel')"
+                        help="Ouvrir l'assistant de selection des lots (FIFO, checkbox, qty modifiable)."/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

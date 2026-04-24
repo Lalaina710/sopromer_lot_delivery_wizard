@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0). -->
+<odoo>
+
+    <record id="sopromer_lot_delivery_wizard_form" model="ir.ui.view">
+        <field name="name">sopromer.lot.delivery.wizard.form</field>
+        <field name="model">sopromer.lot.delivery.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Assistant selection lots">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>
+                            <field name="product_id" readonly="1" nolabel="1"/>
+                        </h2>
+                    </div>
+
+                    <group>
+                        <group string="Mouvement">
+                            <field name="picking_id" readonly="1"/>
+                            <field name="location_id" readonly="1"/>
+                            <field name="uom_id" invisible="1"/>
+                        </group>
+                        <group string="Quantites">
+                            <field name="demand_qty" readonly="1"/>
+                            <field name="total_selected_qty" readonly="1"/>
+                            <field name="remaining_qty"
+                                   readonly="1"
+                                   decoration-danger="remaining_qty &gt; 0"
+                                   decoration-success="remaining_qty == 0"/>
+                        </group>
+                    </group>
+
+                    <separator string="Lots disponibles"/>
+                    <field name="available_line_ids" nolabel="1">
+                        <list editable="bottom"
+                              create="false"
+                              delete="false"
+                              decoration-info="to_select == True">
+                            <field name="lot_id" column_invisible="1"/>
+                            <field name="to_select" widget="boolean_toggle"/>
+                            <field name="lot_name" readonly="1"/>
+                            <field name="expiration_date" readonly="1" optional="show"/>
+                            <field name="qty_available" readonly="1"/>
+                            <field name="qty_reserved"
+                                   readonly="1"
+                                   decoration-warning="qty_reserved &gt; 0"/>
+                            <field name="reserved_on"
+                                   readonly="1"
+                                   optional="show"/>
+                            <field name="qty_free" readonly="1"/>
+                            <field name="qty_to_take"
+                                   decoration-bf="to_select == True"/>
+                        </list>
+                    </field>
+                    <div class="alert alert-info mt-2" role="alert">
+                        <strong>Astuce :</strong>
+                        Les lots sont tries par date d'expiration (FIFO).
+                        Les plus anciens sont pre-coches jusqu'a couvrir
+                        la demande. Cochez/decochez et ajustez les quantites,
+                        puis cliquez sur <strong>Valider</strong>.
+                    </div>
+                </sheet>
+
+                <footer>
+                    <button name="action_validate"
+                            type="object"
+                            string="Valider la livraison"
+                            class="btn-primary"
+                            confirm="Creer les lignes de mouvement pour les lots coches ?"/>
+                    <button name="action_cancel"
+                            type="object"
+                            string="Annuler"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

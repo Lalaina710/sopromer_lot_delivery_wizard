@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sopromer_lot_delivery_wizard_user,sopromer.lot.delivery.wizard user,model_sopromer_lot_delivery_wizard,stock.group_stock_user,1,1,1,1
+access_sopromer_lot_delivery_wizard_manager,sopromer.lot.delivery.wizard manager,model_sopromer_lot_delivery_wizard,stock.group_stock_manager,1,1,1,1
+access_sopromer_lot_delivery_wizard_available_user,sopromer.lot.delivery.wizard.available user,model_sopromer_lot_delivery_wizard_available,stock.group_stock_user,1,1,1,1
+access_sopromer_lot_delivery_wizard_available_manager,sopromer.lot.delivery.wizard.available manager,model_sopromer_lot_delivery_wizard_available,stock.group_stock_manager,1,1,1,1
