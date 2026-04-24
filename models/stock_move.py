@@ -1,12 +1,47 @@
 # -*- coding: utf-8 -*-
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_compare
 
 
 class StockMove(models.Model):
     _inherit = 'stock.move'
+
+    @api.constrains('move_line_ids.quantity', 'product_uom_qty', 'state')
+    def _check_move_lines_dont_exceed_demand(self):
+        """Block any write that makes sum(move_line.quantity) exceed
+        product_uom_qty on an outgoing tracked move.
+
+        Fires regardless of the source (native popup 'Detail des
+        operations', SOPROMER wizard, script, etc.), so the stock
+        stays coherent with the demand at all times.
+        """
+        for move in self:
+            if move.state in ('done', 'cancel', 'draft'):
+                continue
+            if move.picking_type_id.code != 'outgoing':
+                continue
+            if move.product_id.tracking not in ('lot', 'serial'):
+                continue
+            if not move.move_line_ids:
+                continue
+            total = sum(move.move_line_ids.mapped('quantity'))
+            rounding = move.product_uom.rounding
+            if float_compare(total, move.product_uom_qty,
+                             precision_rounding=rounding) > 0:
+                raise ValidationError(_(
+                    "Produit '%(prod)s' : la somme des quantites des "
+                    "lots selectionnes (%(sel)s %(uom)s) depasse la "
+                    "quantite demandee (%(dem)s %(uom)s).\n\n"
+                    "Ajustez les quantites ou supprimez des lots via le "
+                    "popup 'Detail des operations' (menu ≡)."
+                ) % {
+                    'prod': move.product_id.display_name,
+                    'sel': total,
+                    'dem': move.product_uom_qty,
+                    'uom': move.product_uom.name,
+                })
 
     @api.onchange('product_uom_qty')
     def _onchange_product_uom_qty_warn_lots(self):
