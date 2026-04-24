@@ -265,19 +265,19 @@ class SopromerLotDeliveryWizardAvailable(models.TransientModel):
     )
     lot_id = fields.Many2one('stock.lot', string='Lot', required=True)
     lot_name = fields.Char(related='lot_id.name', readonly=True)
+    # Note: NOT readonly at model level - Odoo client strips readonly fields
+    # from default_get commands during auto-save of transient wizards, so
+    # values persist as NULL in DB. View-level readonly="1" is sufficient.
     qty_available = fields.Float(
         string='Qte dispo',
         digits='Product Unit of Measure',
-        readonly=True,
     )
     qty_reserved = fields.Float(
         string='Deja reserve',
         digits='Product Unit of Measure',
-        readonly=True,
     )
     reserved_on = fields.Char(
         string='Reserve sur',
-        readonly=True,
     )
     qty_free = fields.Float(
         string='Qte libre',
