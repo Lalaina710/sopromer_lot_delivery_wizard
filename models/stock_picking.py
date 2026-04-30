@@ -58,7 +58,7 @@ class StockPicking(models.Model):
         self.ensure_one()
         if self.sale_id:
             return True
-        if self.group_id and self.group_id.sale_ids:
+        if self.group_id and self.group_id.sale_id:
             return True
         return False
 
