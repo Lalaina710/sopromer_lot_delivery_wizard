@@ -62,15 +62,19 @@ class StockPicking(models.Model):
             return True
         return False
 
-    def button_validate(self):
-        """Block validation if any outgoing tracked move has an
-        inconsistency between the demanded qty and the total lot-selected
-        qty (sum of move_line.quantity).
+    def _sopromer_lot_selection_errors(self):
+        """Controles lots d'un BL sortant avant validation (18.0.1.8.0).
 
-        Typical case blocked: user edits picking demand AFTER lots were
-        selected via the wizard, then tries to validate -> would deliver
-        a wrong qty (over or under) silently. We force a reset.
+        Pour chaque mouvement suivi par lot / serie non termine :
+
+        - ligne SANS lot avec une quantite -> refus (tracabilite) ;
+        - somme des lots > demande -> refus (sur-livraison silencieuse) ;
+        - somme des lots < demande -> ACCEPTE : Odoo propose ensuite son
+          ecran natif "Creer un reliquat / Pas de reliquat" (EF-04/06).
+
+        :return: liste de messages (vide si rien a signaler)
         """
+        errors = []
         for picking in self:
             if picking.picking_type_id.code != 'outgoing':
                 continue
@@ -79,30 +83,59 @@ class StockPicking(models.Model):
                     continue
                 if move.product_id.tracking not in ('lot', 'serial'):
                     continue
-                lines_with_lot = move.move_line_ids.filtered('lot_id')
-                if not lines_with_lot:
-                    continue
-                total_lines = sum(lines_with_lot.mapped('quantity'))
                 rounding = move.product_uom.rounding
-                if float_compare(total_lines, move.product_uom_qty,
-                                 precision_rounding=rounding) != 0:
-                    raise UserError(_(
-                        "Incoherence sur le produit '%(prod)s' :\n"
-                        "  - Quantite demandee : %(demand)s %(uom)s\n"
-                        "  - Quantite des lots selectionnes : %(sel)s %(uom)s\n\n"
-                        "La demande a ete modifiee apres la selection "
-                        "des lots. Avant de valider le BL, nettoyez et "
-                        "resaisissez les lots :\n"
-                        "  1. Cliquez sur l'icone ≡ (menu sandwich) a "
-                        "droite de la ligne produit\n"
-                        "  2. Supprimez toutes les lignes de lots\n"
-                        "  3. Fermez le popup\n"
-                        "  4. Relancez l'Assistant lots (baguette magique)\n"
-                        "  5. Revenez valider le BL"
-                    ) % {
-                        'prod': move.product_id.display_name,
-                        'demand': move.product_uom_qty,
-                        'sel': total_lines,
-                        'uom': move.product_uom.name,
-                    })
+                lines = move.move_line_ids.filtered(
+                    lambda ml: float_compare(
+                        ml.quantity, 0.0,
+                        precision_rounding=ml.product_uom_id.rounding) > 0)
+                without_lot = lines.filtered(lambda ml: not ml.lot_id and not ml.lot_name)
+                total_lots = sum(
+                    ml.product_uom_id._compute_quantity(ml.quantity, move.product_uom, round=False)
+                    for ml in lines - without_lot
+                )
+                params = {
+                    'picking': picking.name,
+                    'prod': move.product_id.display_name,
+                    'demand': move.product_uom_qty,
+                    'sel': total_lots,
+                    'uom': move.product_uom.name,
+                }
+                if without_lot:
+                    params['nolot'] = sum(
+                        ml.product_uom_id._compute_quantity(ml.quantity, move.product_uom, round=False)
+                        for ml in without_lot
+                    )
+                    errors.append(_(
+                        "%(picking)s - %(prod)s : %(nolot)s %(uom)s sans lot.\n"
+                        "Chaque quantité livrée doit porter un lot. Relancez "
+                        "l'Assistant lots (baguette magique) : il remplace toutes "
+                        "les lignes du produit par les lots cochés. Ou supprimez la "
+                        "ligne sans lot dans Détail des opérations (icône ≡).",
+                        **params,
+                    ))
+                elif float_compare(total_lots, move.product_uom_qty,
+                                   precision_rounding=rounding) > 0:
+                    errors.append(_(
+                        "%(picking)s - %(prod)s : lots sélectionnés %(sel)s %(uom)s "
+                        "pour une demande de %(demand)s %(uom)s.\n"
+                        "On ne livre pas plus que la demande : réduisez les "
+                        "quantités des lots (Assistant lots ou Détail des "
+                        "opérations) à %(demand)s %(uom)s au plus. Livrer moins "
+                        "que la demande est possible : Odoo proposera alors "
+                        "« Créer un reliquat » ou « Pas de reliquat ».",
+                        **params,
+                    ))
+        return errors
+
+    def button_validate(self):
+        """Refuser la validation d'un BL sortant dont les lots sont incoherents.
+
+        18.0.1.8.0 (TICKET 09102026-03, EF-04/05) : une couverture partielle
+        (somme des lots < demande) n'est plus bloquee ; seuls une ligne sans
+        lot et un depassement de la demande le sont, avec un message qui
+        donne une sortie (plus de boucle « supprimez / relancez »).
+        """
+        errors = self._sopromer_lot_selection_errors()
+        if errors:
+            raise UserError('\n\n'.join(errors))
         return super().button_validate()

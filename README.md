@@ -1,6 +1,6 @@
 # SOPROMER — Assistant sélection lots BL de vente
 
-Module Odoo 18 — **v18.0.1.5.0**
+Module Odoo 18 — **v18.0.1.8.0**
 
 ## Contexte
 
@@ -22,6 +22,23 @@ Ce module **n'altère pas** le popup natif — il ajoute un bouton complémentai
 - **Validation 1-clic** : crée les `stock.move.line` correspondants avec `lot_id` + `quantity` + `location_id` + `location_dest_id`
 - **Scope BL sortants uniquement** — bouton invisible sur réceptions, transferts internes, MO, etc.
 - **Lots archivés / fournisseurs purs exclus** côté quants
+
+## Contrôle à la validation du BL (depuis 18.0.1.8.0)
+
+À la validation d'un BL sortant (`stock.picking.button_validate`), pour chaque produit suivi par lot / série :
+
+| Situation | Résultat |
+|---|---|
+| Somme des lots **=** demande | validation directe |
+| Somme des lots **<** demande (livraison partielle) | **acceptée** : Odoo ouvre son écran natif « Créer un reliquat / Pas de reliquat » (TICKET 09102026-03, EF-04/06) |
+| Somme des lots **>** demande | **refusée** : réduire les lots à la demande (Assistant lots ou Détail des opérations) |
+| Ligne **sans lot** avec une quantité | **refusée** : relancer l'Assistant lots (il remplace toutes les lignes du produit par les lots cochés) ou supprimer la ligne sans lot |
+
+Le message d'erreur nomme le BL, le produit et les quantités, et donne la sortie (fin de la boucle « supprimez / relancez » de 18.0.1.4.0 – 18.0.1.7.1 qui bloquait toute livraison partielle). L'assistant ne crée jamais de ligne sans lot ; une sélection partielle (lots < demande) y est permise.
+
+L'avertissement à la modification de la demande ne s'affiche plus que si les lots déjà sélectionnés dépassent la nouvelle demande.
+
+L'effet sur le bon de commande (BC inchangé avec reliquat, aligné sur le livré sans reliquat) relève du module `sopromer_lock_so_after_delivery` (18.0.1.2.0).
 
 ## Installation
 
@@ -89,6 +106,7 @@ Cette règle évite les sur-allocations de stock quand la demande ou les lots ch
 | 18.0.1.3.0 | 2026-04-24 | **Sécurisation** : blocage de l'ouverture du wizard si le move a déjà des lots sélectionnés. Message avec instructions claires pour passer par le menu sandwich natif. Revert du sync intelligent → create-only simple. Ajout cap par-lot (`qty_to_take <= qty_free`) à la validation. | Claude (opus-4.7) |
 | 18.0.1.4.0 | 2026-04-24 | **Sécurisation** : blocage `button_validate` sur BL si incohérence demande ≠ somme(move_line.quantity) sur un move tracé (évite sur/sous-livraison silencieuse après modification de qty). Ajout warning onchange `product_uom_qty` avertissant l'user dès la modification de la demande si lots déjà sélectionnés. | Claude (opus-4.7) |
 | 18.0.1.5.0 | 2026-04-24 | **Fix faux positif** : suppression du block d'ouverture v1.3.0 qui déclenchait sur BL fraîche (Odoo auto-réserve lots à la réservation → move.line avec qty > 0 sans action user). Nouvelle stratégie : wizard **remplace** l'état existant au `action_validate` (unlink all + create fresh). Les défenses v1.4.0 (warning onchange + block `button_validate`) restent en place pour catch les incohérences. | Claude (opus-4.7) |
+| 18.0.1.8.0 | 2026-10-09 | **Reliquat produits lot** (TICKET 09102026-03, EF-04/05/06) : le contrôle `button_validate` accepte somme des lots < demande (écran natif reliquat), refuse somme > demande et toute ligne sans lot, message avec sortie (plus de boucle). Avertissement de demande limité au dépassement. Tests `tests/test_lot_wizard_partial.py`. | SOPROMER |
 
 ## TODO / v1.1
 
@@ -99,7 +117,7 @@ Cette règle évite les sur-allocations de stock quand la demande ou les lots ch
 
 ### Priorité moyenne
 
-- [ ] Tests unitaires (`tests/test_lot_wizard.py`)
+- [x] ~~Tests unitaires~~ → `tests/test_lot_wizard_partial.py` (18.0.1.8.0)
 - [ ] Support multi-emplacements source (locations enfants du warehouse)
 - [ ] Indicateur stock négatif (interaction avec `stock_no_negative` tiers)
 - [ ] Bouton "Assistant lots global" au niveau du BL (traiter tous les produits en une passe)

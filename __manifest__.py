@@ -2,7 +2,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0).
 {
     'name': 'SOPROMER - Assistant selection lots BL de vente',
-    'version': '18.0.1.7.1',
+    'version': '18.0.1.8.0',
     'category': 'Inventory/Inventory',
     'summary': 'Wizard intuitif multi-lots BL de vente (FIFO + checkbox + qty modifiable + 1-clic valider)',
     'description': """
@@ -19,6 +19,9 @@ Ajoute un bouton "Assistant lots" sur chaque ligne de mouvement
 * Case a cocher + quantite modifiable par lot.
 * Header live : total selectionne et restant a prendre en temps reel.
 * Validation 1-clic : cree les stock.move.line sur le move et ferme.
+* Couverture partielle acceptee (18.0.1.8.0) : lots < demande -> Odoo
+  propose son ecran natif "Creer un reliquat / Pas de reliquat" ; refus
+  si lots > demande ou ligne sans lot.
 
 N'altere pas le popup natif "Detail des operations" : le bouton est
 ajoute a cote. Scope limite aux pickings sortants (outgoing).

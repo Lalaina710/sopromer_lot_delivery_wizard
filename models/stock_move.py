@@ -60,7 +60,11 @@ class StockMove(models.Model):
 
     @api.onchange('product_uom_qty')
     def _onchange_product_uom_qty_warn_lots(self):
-        """Warn when user edits demand on a move with existing lot lines."""
+        """Warn when the new demand is below the lots already selected.
+
+        18.0.1.8.0 : une demande superieure aux lots n'est plus un blocage
+        (reliquat propose a la validation) ; seul le depassement l'est.
+        """
         if not self.move_line_ids or not self.product_uom:
             return
         if self.product_id.tracking not in ('lot', 'serial'):
@@ -68,24 +72,27 @@ class StockMove(models.Model):
         lines_with_lot = self.move_line_ids.filtered('lot_id')
         if not lines_with_lot:
             return
-        total_lines = sum(lines_with_lot.mapped('quantity'))
+        total_lines = sum(
+            ml.product_uom_id._compute_quantity(ml.quantity, self.product_uom, round=False)
+            for ml in lines_with_lot
+        )
         rounding = self.product_uom.rounding
         if float_compare(total_lines, self.product_uom_qty,
-                         precision_rounding=rounding) == 0:
+                         precision_rounding=rounding) <= 0:
             return
         return {
             'warning': {
-                'title': _("Lots a reselectionner"),
+                'title': _("Lots au-dessus de la demande"),
                 'message': _(
-                    "Vous avez modifie la quantite demandee mais des lots "
-                    "sont deja selectionnes (total actuel : %(sel)s).\n\n"
-                    "La validation du BL sera bloquee tant que ces lots "
-                    "ne sont pas resaisies.\n\n"
-                    "Action requise :\n"
-                    "1. Menu sandwich ≡ sur la ligne -> Detail des operations\n"
-                    "2. Supprimez toutes les lignes de lots\n"
-                    "3. Relancez l'Assistant lots (baguette magique)"
-                ) % {'sel': total_lines},
+                    "Les lots déjà sélectionnés (%(sel)s) dépassent la nouvelle "
+                    "demande (%(demand)s).\n\n"
+                    "La validation du BL sera refusée tant que les lots "
+                    "dépassent la demande : relancez l'Assistant lots "
+                    "(baguette magique), il remplace les lignes du produit "
+                    "par les lots cochés.",
+                    sel=total_lines,
+                    demand=self.product_uom_qty,
+                ),
             }
         }
 
